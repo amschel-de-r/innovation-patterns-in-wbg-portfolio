@@ -1,0 +1,36 @@
+[build-system]
+# This is NOT a package - tell setuptools to skip package discovery
+requires = []
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = []
+
+[tool.pytest.ini_options]
+# Pytest configuration for innovation big data analysis project
+
+# Test discovery patterns
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Minimum Python version
+minversion = "7.0"
+
+# Test paths
+testpaths = [
+    "tests"
+]
+
+# Custom markers
+markers = [
+    "optional: marks tests as optional (nice-to-have, lower priority)",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
+# Output options
+addopts = [
+    "-ra",  # Show summary of all test outcomes except passed
+    "--strict-markers",  # Raise error on unregistered markers
+    "--strict-config",  # Raise error on config issues
+]
