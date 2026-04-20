@@ -1,0 +1,21 @@
+{
+    "pilot": {
+        "pilot": ["pilot"],
+        "piloted": ["piloted"],
+        "piloting": ["piloting"],
+        "prototype": ["prototype"],
+        "trial": ["trial"],
+        "demonstration": ["demonstration"],
+        "proof-of-concept": ["proof-of-concept"]
+    },
+    "scale": {
+        "scale": [" scale"],
+        "scaling": ["scaling"],
+        "scaled-up": ["scaled-up"],
+        "replication": ["replication"],
+        "replicate": ["replicate"],
+        "mainstream": ["mainstream"],
+        "mainstreaming": ["mainstreaming"],
+        "mainstreamed": ["mainstreamed"]
+    }
+}
