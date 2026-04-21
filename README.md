@@ -8,8 +8,6 @@ Research pipeline analyzing innovation patterns in World Bank Group project eval
 
 This package reproduces all quantitative exhibits in the paper. It processes the IEG ICRR-PPAR Lessons dataset through a 17-step pipeline to produce 28 tables, 4 figures, and a set of inline statistics. Six tables and one figure in the paper are qualitative or synthesis content and are not reproducible from code alone (see [List of Exhibits](#list-of-exhibits)).
 
----pip 
-
 ## Computational Requirements
 
 | Requirement | Details |
