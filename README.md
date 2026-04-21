@@ -6,11 +6,9 @@ Research pipeline analyzing innovation patterns in World Bank Group project eval
 
 ## Overview
 
-This package reproduces all quantitative exhibits in the paper. It processes the IEG ICRR-PPAR Lessons dataset through a 17-step pipeline to produce 28 tables, 4 figures, and a set of inline statistics. The full pipeline runs in approximately 15 seconds with a single command. Six tables and one figure in the paper are qualitative or synthesis content and are not reproducible from code alone (see [List of Exhibits](#list-of-exhibits)).
+This package reproduces all quantitative exhibits in the paper. It processes the IEG ICRR-PPAR Lessons dataset through a 17-step pipeline to produce 28 tables, 4 figures, and a set of inline statistics. Six tables and one figure in the paper are qualitative or synthesis content and are not reproducible from code alone (see [List of Exhibits](#list-of-exhibits)).
 
-**Third-party replicability:** A third party can run this package without modification. All input data are included. No path configuration is required — all paths are relative to the script location.
-
----
+---pip 
 
 ## Computational Requirements
 
@@ -219,11 +217,6 @@ All Python-automated steps run through `scripts/run_analysis.py`, which calls mo
   - [`ifc_keyword_sensitivity.ipynb`](notebooks/ifc_keyword_sensitivity.ipynb) — IFC keyword sensitivity analysis (Step 11)
 
 ---
-
-## License
-
-<!-- TODO: confirm license with WB reproducibility team before submission. WB research outputs typically use CC BY 3.0 IGO. -->
-License to be confirmed. WB research outputs typically use [CC BY 3.0 IGO](https://creativecommons.org/licenses/by/3.0/igo/).
 
 ## Contact
 
