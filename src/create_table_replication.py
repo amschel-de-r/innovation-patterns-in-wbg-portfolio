@@ -5,7 +5,6 @@ External scripts should load and prepare data once, then pass to these functions
 """
 
 import pandas as pd
-from pathlib import Path
 import numpy as np
 
 # Constants
@@ -34,6 +33,7 @@ PILOT_CATEGORIES = ["Pilot + Scaled", "Pilot Only", "No Pilot"]
 HM_LABELS = {1: "High + Moderate Innovative Projects", 0: "Low Innovation"}
 
 GP_THRESHOLD = 0.003  # Minimum share of projects for a GP to be included
+PCM_GP_THRESHOLD = 0.11   # Minimum PCM share for a GP to appear in Table 3.16
 
 # Helper functions
 def _add_percentage_columns(pivot_df: pd.DataFrame, suffix_from='(Number)', suffix_to='(%)', format_str='{:.1f}%') -> pd.DataFrame:
@@ -380,28 +380,37 @@ def create_table_3_13(df: pd.DataFrame) -> pd.DataFrame:
 
 def create_table_3_15(df: pd.DataFrame) -> pd.DataFrame:
     """Table 3.15: PCM project mentions across portfolio slices."""
-    return (
+    grouped = (
         df
         .assign(hm_group=lambda x: x.high_innovation.map({1: 'HM', 0: 'L'}))
         .groupby(['hm_group'])
         .agg(
             total=('project_id', 'count'),
-            pcm_count = ('pcm_tag', 'sum')
+            pcm_count=('pcm_tag', 'sum')
         )
         .reset_index()
-        .pipe(_add_totals_row, position='top')
-        .query("hm_group != 'L'")
-        .assign(
-            share = lambda x: (x.pcm_count / x.total).astype(float).round(3),
-            hm_group = lambda x: x.hm_group.map({'HML': 'All Projects', 'HM': 'High + Moderate Innovative Projects'})
-        )
+    )
+
+    all_row = pd.DataFrame({
+        'hm_group': ['All Projects'],
+        'total': [grouped['total'].sum()],
+        'pcm_count': [grouped['pcm_count'].sum()],
+    })
+    hm_row = (
+        grouped
+        .query("hm_group == 'HM'")
+        .assign(hm_group='High + Moderate Innovative Projects')
+    )
+
+    return (
+        pd.concat([all_row, hm_row], ignore_index=True)
+        .assign(share=lambda x: (x.pcm_count / x.total).astype(float).round(3))
         .drop(columns=['total'])
         .rename(columns={
             'hm_group': 'Portfolio slice',
             'pcm_count': 'Projects mentioning PCM',
             'share': 'Share of portfolio slice'
         })
-        .reset_index(drop=True)
     )
 
 
@@ -422,7 +431,7 @@ def create_table_3_16(df: pd.DataFrame) -> pd.DataFrame:
         )
         .sort_values('share', ascending=False)
         .reset_index(drop=True)
-        .query("share > 0.11")
+        .query("share > @PCM_GP_THRESHOLD")
         .rename(columns={
             'global_practice': 'GP',
             'total': 'Total Projects',
@@ -461,111 +470,60 @@ def create_table_D_1(df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def create_table_D_2a(df: pd.DataFrame) -> pd.DataFrame:
-    """Tables: D.2a: IEG outcome ratings by innovation tier."""
+def _create_rating_table(df: pd.DataFrame, rating_col: str, shorten_hm_label: bool = False) -> pd.DataFrame:
+    """Build the 'all projects + split by innovation tier' rating table used by D.2a–d.
 
-    rating = (
-        pd.DataFrame({
-            'Projects': ['All'],
-            'Average Rating': df['ieg_outcome_ratings_num'].mean().round(2),
-            'Difference from Overall': ['-'],
-            '% Difference': ['-']})
-    )
-    rating_split = (
+    Args:
+        df: Processed DataFrame.
+        rating_col: Column with numeric IEG rating values.
+        shorten_hm_label: If True, renames 'High + Moderate Innovative Projects'
+            to 'High + Moderate Innovative' in the Projects column (used by D.2c/d).
+    """
+    overall_mean = df[rating_col].mean().round(2)
+    all_row = pd.DataFrame({
+        'Projects': ['All'],
+        'Average Rating': overall_mean,
+        'Difference from Overall': ['-'],
+        '% Difference': ['-'],
+    })
+    split = (
         df.assign(innovation=lambda x: x.high_innovation.map(HM_LABELS))
-            .groupby('innovation')['ieg_outcome_ratings_num']
-            .mean()
-            .round(2)
-            .to_frame()
-            .reset_index()
-            .rename(columns={'innovation': 'Projects', 'ieg_outcome_ratings_num': 'Average Rating'})
-            .assign(
-                **{'Difference from Overall': lambda x: (x['Average Rating'] - rating['Average Rating'][0]).round(2)},
-                **{'% Difference': lambda x: round(x['Difference from Overall'] / rating['Average Rating'][0], 3)}
-            )
+        .groupby('innovation')[rating_col]
+        .mean()
+        .round(2)
+        .to_frame()
+        .reset_index()
+        .rename(columns={'innovation': 'Projects', rating_col: 'Average Rating'})
     )
-    return pd.concat([rating, rating_split], ignore_index=True, sort=False)
+    if shorten_hm_label:
+        split['Projects'] = split['Projects'].replace(
+            {'High + Moderate Innovative Projects': 'High + Moderate Innovative'}
+        )
+    split = split.assign(
+        **{'Difference from Overall': lambda x: (x['Average Rating'] - overall_mean).round(2)},
+        **{'% Difference': lambda x: round(x['Difference from Overall'] / overall_mean, 3)},
+    )
+    return pd.concat([all_row, split], ignore_index=True, sort=False)
+
+
+def create_table_D_2a(df: pd.DataFrame) -> pd.DataFrame:
+    """Table D.2a: IEG outcome ratings by innovation tier."""
+    return _create_rating_table(df, 'ieg_outcome_ratings_num')
+
 
 def create_table_D_2b(df: pd.DataFrame) -> pd.DataFrame:
-    """Tables: D.2b: Bank performance ratings by innovation tier."""
+    """Table D.2b: Bank performance ratings by innovation tier."""
+    return _create_rating_table(df, 'ieg_bank_performance_ratings_num')
 
-    rating = (
-        pd.DataFrame({
-            'Projects': ['All'],
-            'Average Rating': df['ieg_bank_performance_ratings_num'].mean().round(2),
-            'Difference from Overall': ['-'],
-            '% Difference': ['-']})
-    )
-    rating_split = (
-        df.assign(innovation=lambda x: x.high_innovation.map(HM_LABELS))
-            .groupby('innovation')['ieg_bank_performance_ratings_num']
-            .mean()
-            .round(2)
-            .to_frame()
-            .reset_index()
-            .rename(columns={'innovation': 'Projects', 'ieg_bank_performance_ratings_num': 'Average Rating'})
-            .assign(
-                **{'Difference from Overall': lambda x: (x['Average Rating'] - rating['Average Rating'][0]).round(2)},
-                **{'% Difference': lambda x: round(x['Difference from Overall'] / rating['Average Rating'][0], 3)}
-            )
-    )
-    return pd.concat([rating, rating_split], ignore_index=True, sort=False)
 
 def create_table_D_2c(df: pd.DataFrame) -> pd.DataFrame:
-    """Tables: D.2c: Quality of supervision ratings by innovation tier."""
+    """Table D.2c: Quality of supervision ratings by innovation tier."""
+    return _create_rating_table(df, 'ieg_quality_of_supervision_ratings_num', shorten_hm_label=True)
 
-    rating = (
-        pd.DataFrame({
-            'Projects': ['All'],
-            'Average Rating': df['ieg_quality_of_supervision_ratings_num'].mean().round(2),
-            'Difference from Overall': ['-'],
-            '% Difference': ['-']})
-    )
-    rating_split = (
-        df.assign(innovation=lambda x: x.high_innovation.map(HM_LABELS))
-            .groupby('innovation')['ieg_quality_of_supervision_ratings_num']
-            .mean()
-            .round(2)
-            .to_frame()
-            .reset_index()
-            .rename(columns={'innovation': 'Projects', 'ieg_quality_of_supervision_ratings_num': 'Average Rating'})
-            .assign(Projects=lambda x: x["Projects"].replace(
-                {'High + Moderate Innovative Projects': 'High + Moderate Innovative'}
-            ))
-            .assign(
-                **{'Difference from Overall': lambda x: (x['Average Rating'] - rating['Average Rating'][0]).round(2)},
-                **{'% Difference': lambda x: round(x['Difference from Overall'] / rating['Average Rating'][0], 3)}
-            )
-    )
-    return pd.concat([rating, rating_split], ignore_index=True, sort=False)
 
 def create_table_D_2d(df: pd.DataFrame) -> pd.DataFrame:
-    """Tables: D.2d: Quality at entry ratings by innovation tier."""
-
-    rating = (
-        pd.DataFrame({
-            'Projects': ['All'],
-            'Average Rating': df['ieg_quality_at_entry_ratings_num'].mean().round(2),
-            'Difference from Overall': ['-'],
-            '% Difference': ['-']})
-    )
-    rating_split = (
-        df.assign(innovation=lambda x: x.high_innovation.map(HM_LABELS))
-            .groupby('innovation')['ieg_quality_at_entry_ratings_num']
-            .mean()
-            .round(2)
-            .to_frame()
-            .reset_index()
-            .rename(columns={'innovation': 'Projects', 'ieg_quality_at_entry_ratings_num': 'Average Rating'})
-            .assign(Projects=lambda x: x["Projects"].replace(
-                {'High + Moderate Innovative Projects': 'High + Moderate Innovative'}
-            ))
-            .assign(
-                **{'Difference from Overall': lambda x: (x['Average Rating'] - rating['Average Rating'][0]).round(2)},
-                **{'% Difference': lambda x: round(x['Difference from Overall'] / rating['Average Rating'][0], 3)}
-            )
-    )
-    return pd.concat([rating, rating_split], ignore_index=True, sort=False)
+    """Table D.2d: Quality at entry ratings by innovation tier."""
+    return _create_rating_table(df, 'ieg_quality_at_entry_ratings_num', shorten_hm_label=True)
 
 def create_table_E_1(df: pd.DataFrame) -> pd.DataFrame:
     """Table E.1: Total mentions of innovation models."""

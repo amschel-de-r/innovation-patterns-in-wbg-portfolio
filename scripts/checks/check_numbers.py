@@ -14,59 +14,16 @@ Outputs:
 
 Run: python analyses/prwp_2025/scripts/check_numbers.py
 """
-import os
 import re
 import openpyxl
+from pathlib import Path
 from docx import Document
-from lxml import etree
+from _doc_utils import REPO_ROOT, DOCX_PATH, MANIFEST_PATH, get_para_text_accepted, build_doc_paragraphs, load_manifest
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-DOCX_PATH = os.path.join(REPO_ROOT, "manuscript", "PRWP working draft - Innovation Patterns in WBG Portfolio.docx")
-MANIFEST_PATH = os.path.join(REPO_ROOT, "output", "numbers_manifest.xlsx")
-SUMMARY_PATH = os.path.join(REPO_ROOT, "output", "numbers_summary.xlsx")
+SUMMARY_PATH = REPO_ROOT / "output" / "numbers_summary.xlsx"
 
 # XML namespaces
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-
-
-# ---------------------------------------------------------------------------
-# Tracked-change-aware text extraction
-# ---------------------------------------------------------------------------
-
-def get_para_text_accepted(para_element) -> str:
-    """
-    Extract paragraph text as it would appear after accepting all tracked changes:
-      - Include text inside <w:ins> elements
-      - Exclude text inside <w:del> elements
-      - Include plain <w:r> run text
-    """
-    parts = []
-    for node in para_element.iter():
-        tag = node.tag.split("}")[-1] if "}" in node.tag else node.tag
-
-        # Skip deleted content
-        if tag == "del":
-            continue
-
-        # Include text nodes that are direct children of runs (w:r) or insertions (w:ins > w:r)
-        if tag == "t":
-            # Check ancestors: if any ancestor is a w:del, skip
-            parent = node.getparent()
-            in_del = False
-            while parent is not None:
-                ptag = parent.tag.split("}")[-1] if "}" in parent.tag else parent.tag
-                if ptag == "del":
-                    in_del = True
-                    break
-                parent = parent.getparent()
-            if not in_del and node.text:
-                parts.append(node.text)
-    return "".join(parts)
-
-
-def build_doc_paragraphs(doc: Document) -> list[str]:
-    """Return list of accepted-text strings, one per paragraph."""
-    return [get_para_text_accepted(p._element) for p in doc.paragraphs]
 
 
 # ---------------------------------------------------------------------------
@@ -143,14 +100,6 @@ def stat_in_text(stat: str, text: str) -> bool:
     """Check if any candidate form of stat appears in text (case-insensitive)."""
     text_lower = text.lower()
     return any(c in text_lower for c in candidates(stat))
-
-
-def load_manifest() -> list[dict]:
-    wb = openpyxl.load_workbook(MANIFEST_PATH)
-    ws = wb.active
-    rows = list(ws.iter_rows(values_only=True))
-    cols = rows[0]
-    return [dict(zip(cols, row)) for row in rows[1:]]
 
 
 def load_summary() -> dict[str, str]:

@@ -1,6 +1,10 @@
 # Requirements for prwp_2025 analysis
-# Generated against Python 3.14.3
-# Install with: pip install -r requirements.txt
+#
+# Python version: 3.11+ required (tested on 3.14.3)
+#   Minimum 3.11 for `typing.Self` used in src/_vendor/keyword_matcher/core.py.
+#
+# Install with:
+#   pip install -r requirements.txt
 
 # Core data
 pandas==2.3.3

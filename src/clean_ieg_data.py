@@ -117,7 +117,7 @@ def clean_data(df: pd.DataFrame,
         .query(f"evaluation_fy >= {min_evaluation_year} and evaluation_fy <= {max_evaluation_year}")
         .sort_values(['project_id', 'evaluation_fy'], ascending=[True, False])
         .assign(
-            lessons = lambda x: x.lessons.apply(lambda x: ftfy.fix_text(x) if pd.notnull(x) else x),
+            lessons = lambda x: x.lessons.apply(lambda v: ftfy.fix_text(v) if pd.notnull(v) else v),
             # Convert rating text to numeric values (1=worst, 6=best)
             ieg_outcome_ratings_num=lambda x: x.ieg_outcome_ratings.map(RATING_SCALE),
             ieg_bank_performance_ratings_num=lambda x: x.ieg_bank_performance_ratings.map(RATING_SCALE),
@@ -150,7 +150,6 @@ def clean_data(df: pd.DataFrame,
                 'Latin America and Caribbean': 'Latin America and the Caribbean'
             })
         )
-        # .dropna(subset=['lessons'])
         .reset_index(drop=True)
     )
 

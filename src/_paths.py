@@ -11,7 +11,6 @@ from pathlib import Path
 
 # Navigate up to repository root (src/ → repo root)
 ANALYSIS_ROOT = Path(__file__).resolve().parents[1]
-REPO_ROOT = ANALYSIS_ROOT  # same in standalone repo
 
 # Data paths
 DATA_ROOT = ANALYSIS_ROOT / "data"

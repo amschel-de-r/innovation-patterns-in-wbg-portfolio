@@ -13,34 +13,8 @@ Pair with check_numbers.py (manifest → doc) for full bi-directional coverage.
 Run: python analyses/prwp_2025/scripts/extract_doc_numbers.py
 """
 import re
-import os
-import openpyxl
 from docx import Document
-
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-DOCX_PATH = os.path.join(REPO_ROOT, "manuscript", "PRWP working draft - Innovation Patterns in WBG Portfolio.docx")
-MANIFEST_PATH = os.path.join(REPO_ROOT, "output", "numbers_manifest.xlsx")
-
-# ---------------------------------------------------------------------------
-# Tracked-change-aware text extraction (same as check_numbers.py)
-# ---------------------------------------------------------------------------
-
-def get_para_text_accepted(para_element) -> str:
-    parts = []
-    for node in para_element.iter():
-        tag = node.tag.split("}")[-1] if "}" in node.tag else node.tag
-        if tag == "t":
-            in_del = any(
-                (p.tag.split("}")[-1] if "}" in p.tag else p.tag) == "del"
-                for p in node.iterancestors()
-            )
-            if not in_del and node.text:
-                parts.append(node.text)
-    return "".join(parts)
-
-
-def build_paragraphs(doc: Document) -> list[str]:
-    return [get_para_text_accepted(p._element) for p in doc.paragraphs]
+from _doc_utils import REPO_ROOT, DOCX_PATH, MANIFEST_PATH, get_para_text_accepted, build_doc_paragraphs, load_manifest
 
 
 # ---------------------------------------------------------------------------
@@ -130,16 +104,8 @@ def extract_stats(paragraphs: list[str], doc: Document) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# Manifest loading + candidate matching (mirrors check_numbers.py)
+# Manifest matching
 # ---------------------------------------------------------------------------
-
-def load_manifest() -> list[dict]:
-    wb = openpyxl.load_workbook(MANIFEST_PATH)
-    ws = wb.active
-    rows = list(ws.iter_rows(values_only=True))
-    cols = rows[0]
-    return [dict(zip(cols, row)) for row in rows[1:]]
-
 
 def primary_values(s: str) -> set[float]:
     """
@@ -205,7 +171,7 @@ def match_to_manifest(extracted: str, manifest: list[dict]) -> dict | None:
 
 def main():
     doc = Document(DOCX_PATH)
-    paragraphs = build_paragraphs(doc)
+    paragraphs = build_doc_paragraphs(doc)
     manifest = load_manifest()
 
     extracted = extract_stats(paragraphs, doc)

@@ -1,11 +1,3 @@
-[build-system]
-# This is NOT a package - tell setuptools to skip package discovery
-requires = []
-build-backend = "setuptools.build_meta"
-
-[tool.setuptools]
-packages = []
-
 [tool.pytest.ini_options]
 # Pytest configuration for innovation big data analysis project
 

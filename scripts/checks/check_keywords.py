@@ -6,19 +6,16 @@ Compare Appendix B of the PRWP working draft against the canonical keyword JSON 
 Outputs:
   - Keywords in JSON but missing from Appendix B
   - Keywords in Appendix B but missing from JSON
-  - Stale 'old_keywords' diffs (what changed since old version)
 
 Run: python analyses/prwp_2025/scripts/check_keywords.py
 """
 import json
-import os
 import re
 from docx import Document
+from _doc_utils import REPO_ROOT, DOCX_PATH
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-DOCX_PATH = os.path.join(REPO_ROOT, "manuscript", "PRWP working draft - Innovation Patterns in WBG Portfolio.docx")
-KW_DIR = os.path.join(REPO_ROOT, "data", "reference", "keywords")
-OLD_KW_DIR = os.path.join(REPO_ROOT, "data", "reference", "old_keywords")
+KW_DIR = REPO_ROOT / "data" / "reference" / "keywords"
+OLD_KW_DIR = REPO_ROOT / "data" / "reference" / "old_keywords"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -41,11 +38,10 @@ def flatten_keywords(data: dict | list) -> set[str]:
 def load_all_json_keywords() -> dict[str, set[str]]:
     """Load every .json file in KW_DIR, return {filename: flat set of keywords}."""
     result = {}
-    for fname in sorted(os.listdir(KW_DIR)):
-        if fname.endswith(".json"):
-            with open(os.path.join(KW_DIR, fname)) as f:
-                data = json.load(f)
-            result[fname] = flatten_keywords(data)
+    for path in sorted(KW_DIR.glob("*.json")):
+        with open(path) as f:
+            data = json.load(f)
+        result[path.name] = flatten_keywords(data)
     return result
 
 
@@ -81,33 +77,6 @@ def tokenize_appendix(text: str) -> set[str]:
             result.add(t)
     return result
 
-
-def diff_old_vs_new() -> None:
-    """Print what changed between old_keywords and current keywords."""
-    print("\n" + "=" * 60)
-    print("OLD vs CURRENT keyword diffs")
-    print("=" * 60)
-    for fname in sorted(os.listdir(KW_DIR)):
-        if not fname.endswith(".json"):
-            continue
-        old_path = os.path.join(OLD_KW_DIR, fname)
-        if not os.path.exists(old_path):
-            print(f"\n[{fname}] NEW file (no old version)")
-            continue
-        with open(os.path.join(KW_DIR, fname)) as f:
-            new_kws = flatten_keywords(json.load(f))
-        with open(old_path) as f:
-            old_kws = flatten_keywords(json.load(f))
-        added = new_kws - old_kws
-        removed = old_kws - new_kws
-        if added or removed:
-            print(f"\n[{fname}]")
-            if added:
-                print(f"  + Added ({len(added)}): {sorted(added)}")
-            if removed:
-                print(f"  - Removed ({len(removed)}): {sorted(removed)}")
-        else:
-            print(f"\n[{fname}] no changes")
 
 
 # ---------------------------------------------------------------------------
@@ -163,8 +132,6 @@ def main():
                 print(f"    {kw}")
         else:
             print(f"\n  [{fname}] all present ✓")
-
-    diff_old_vs_new()
 
 
 if __name__ == "__main__":

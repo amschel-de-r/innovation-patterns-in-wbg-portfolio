@@ -12,7 +12,8 @@ from src.clean_ieg_data import clean_data
 from src.create_kw_index import match_innovation_keywords
 from scripts.run_analysis import (
     DROP_NA_LESSONS, PREFER_PPAR_OVER_ICRR, RECALCULATE_FCS_STATUS,
-    FCS_COUNTRIES_LIST, RAW_FILE, load_data
+    FCS_START_FY, FCS_END_FY,
+    RAW_FILE, load_data, load_fcs_countries
 )
 
 import pandas as pd
@@ -34,13 +35,14 @@ def expected_keywords_processed_df():
 
 @pytest.fixture(scope="session")
 def actual_cleaned_df():
+    fcs_countries_list = load_fcs_countries(FCS_START_FY, FCS_END_FY)
     raw_df = load_data(RAW_FILE)
     return clean_data(
         raw_df,
         drop_na_lessons=DROP_NA_LESSONS,
         prefer_ppar_over_icrr=PREFER_PPAR_OVER_ICRR,
         recalculate_fcs_status=RECALCULATE_FCS_STATUS,
-        fcs_countries_list=FCS_COUNTRIES_LIST
+        fcs_countries_list=fcs_countries_list
     )
 
 

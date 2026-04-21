@@ -1,13 +1,107 @@
-"""Figure generation functions for PRWP 2025 analysis.
-
-"""
-import janitor
+"""Figure generation functions for PRWP 2025 analysis."""
 import pandas as pd
-from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import seaborn as sns
+
+
+def _plot_innovation_panel(
+    ax,
+    data,
+    comparison_data,
+    label: str,
+    n_cols: int,
+    idx: int,
+    line_color: str,
+    benchmark_label_fontsize: int,
+    main_label_fontsize: int,
+    title_pad: int,
+    title_y: float | None,
+    ylim: tuple,
+    xlim: tuple,
+    spine_color: str,
+    face_color: str,
+    show_ylabel: bool,
+) -> None:
+    """Render one subplot panel for the small-multiples innovation figures.
+
+    Plots a benchmark (dashed gray) line and a main (colored) line across
+    three decade x-positions, with value labels positioned to avoid overlap.
+
+    Args:
+        ax: Matplotlib Axes object to draw on.
+        data: Series with values for the three decades (main line).
+        comparison_data: Series with values for the three decades (benchmark).
+        label: Panel title text.
+        n_cols: Number of columns in the grid (used to decide when to show y-label).
+        idx: Panel index (0-based) in the flattened axes array.
+        line_color: Hex color for the main data line.
+        benchmark_label_fontsize: Font size for benchmark value labels.
+        main_label_fontsize: Font size for main-line value labels.
+        title_pad: Padding above the panel title.
+        title_y: Vertical position of the title (None = matplotlib default).
+        ylim: (min, max) for y-axis.
+        xlim: (min, max) for x-axis.
+        spine_color: Edge color for panel spines.
+        face_color: Background color for panel.
+        show_ylabel: If True, show y-axis label on leftmost column panels.
+    """
+    x_pos = [0, 1, 2]
+    decades = ['1998-2007', '2008-2017', '2018-2025']
+
+    # Benchmark line
+    ax.plot(x_pos, comparison_data.values, linestyle='--', linewidth=1.5, color='#afb4c1', alpha=0.8)
+    ax.scatter(x_pos, comparison_data.values, s=60, c='#CCCCCC', edgecolor='none', alpha=0.8, zorder=0)
+
+    # Benchmark value labels
+    for i, x in enumerate(x_pos):
+        y = comparison_data.values[i]
+        below = 1 if y <= data.values[i] else -1
+        if not np.isnan(y):
+            ax.text(
+                x, y - below * 1.8, f'{y:.1f}%',
+                ha='center', va='top' if below == 1 else 'bottom',
+                fontsize=benchmark_label_fontsize, color='#333333', alpha=0.8,
+            )
+
+    # Main line
+    ax.plot(x_pos, data.values, marker='o', linewidth=2, markersize=8, color=line_color)
+
+    # Main-line value labels
+    for i, x in enumerate(x_pos):
+        y = data.values[i]
+        above = 1 if y >= comparison_data.values[i] else -1
+        ax.text(
+            x, y + above * 2, f'{y:.0f}%',
+            ha='center', va='bottom' if above == 1 else 'top',
+            fontsize=main_label_fontsize, fontweight='bold',
+        )
+
+    # Panel title
+    title_kwargs = dict(fontsize=11, fontweight='bold', pad=title_pad, loc='center', color='#016dbf')
+    if title_y is not None:
+        title_kwargs['y'] = title_y
+    ax.set_title(label, **title_kwargs)
+
+    ax.set_ylim(*ylim)
+    ax.set_xlim(*xlim)
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(decades, fontsize=7, rotation=0)
+    ax.set_yticks([])
+
+    if show_ylabel and idx % n_cols == 0:
+        ax.set_ylabel('% Projects that are Innovative', fontsize=9)
+
+    for spine in ax.spines.values():
+        spine.set_edgecolor(spine_color)
+        spine.set_linewidth(0.5)
+        spine.set_visible(True)
+
+    ax.set_facecolor(face_color)
+    ax.grid(False)
+    ax.tick_params(axis='x', length=0)
+
 
 def create_fig_3_1(df: pd.DataFrame):
 
@@ -83,62 +177,24 @@ def create_fig_3_1(df: pd.DataFrame):
 
     # Plot each region
     for idx, region in enumerate(regions):
-        ax = axes[idx]
-        
-        # Get data for this region
-        data = plot_data_pct.loc[region]
-        comparison_data = overall_share
-        cohorts = ['1998-2007', '2008-2017', '2018-2025']
-        x_pos = [0, 1, 2]
-
-        # dashed connecting line (lighter gray) and colored markers per cohort
-        ax.plot(x_pos, comparison_data.values, linestyle='--', linewidth=1.5, color='#afb4c1', alpha=0.8)
-        ax.scatter(x_pos, comparison_data.values, s=60, c='#CCCCCC', edgecolor='none', alpha=0.8, zorder=0)
-
-        # label each overall point with its value (positioned like main labels)
-        for i, x in enumerate(x_pos):
-            y = comparison_data.values[i]
-            below = 1 if y <= data.values[i] else -1
-            if not np.isnan(y):
-                ax.text(x, y - below * 1.8, f'{y:.1f}%', ha='center', va='top' if below == 1 else 'bottom', fontsize=7, color='#333333', alpha=0.8)
-
-        # Plot line
-        ax.plot(x_pos, data.values, marker='o', linewidth=2, markersize=8, color='#00274c')
-
-                
-        # Add percentage labels on points
-        for i, x in enumerate(x_pos):
-            y = data.values[i]
-            above = 1 if y >= comparison_data.values[i] else -1
-            ax.text(x, y + above * 2, f'{y:.0f}%', ha='center', va='bottom' if above == 1 else 'top', fontsize=8, fontweight='bold')
-        
-        # Set title (region name)
-        ax.set_title(region, fontsize=11, fontweight='bold', pad=0, y=0.85, loc='center', color='#016dbf')        
-        
-        # Set same y-axis scale for all
-        ax.set_ylim(0, 33)
-        ax.set_xlim(-0.1, 2.1)
-        
-        # Set x-axis labels
-        ax.set_xticks(x_pos)
-        ax.set_xticklabels(cohorts, fontsize=8, rotation=0)
-        
-        # Remove y-axis labels except for leftmost column
-        #if idx % n_cols == 0:
-            #ax.set_ylabel('% Projects that are Innovative', fontsize=9)
-    
-        ax.set_yticks([])
-        
-        for spine in ax.spines.values():
-            spine.set_edgecolor("#dbe8f3")
-            # spine.set_edgecolor('white')
-            spine.set_linewidth(0.5)
-            spine.set_visible(True)
-        
-        ax.set_facecolor("#fafdff")
-
-        ax.grid(False)
-        ax.tick_params(axis='x', length=0)
+        _plot_innovation_panel(
+            ax=axes[idx],
+            data=plot_data_pct.loc[region],
+            comparison_data=overall_share,
+            label=region,
+            n_cols=n_cols,
+            idx=idx,
+            line_color='#00274c',
+            benchmark_label_fontsize=7,
+            main_label_fontsize=8,
+            title_pad=0,
+            title_y=0.85,
+            ylim=(0, 33),
+            xlim=(-0.1, 2.1),
+            spine_color='#dbe8f3',
+            face_color='#fafdff',
+            show_ylabel=False,
+        )
 
     legend_text_main = "Region-specific"
     legend_text_compare =  "Global average"
@@ -253,61 +309,26 @@ def create_fig_3_3(df: pd.DataFrame, t39_df: pd.DataFrame):
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(12, n_rows * 3), dpi=150)
     axes = axes.flatten()
 
-    # Plot each region
+    # Plot each GP
     for idx, region in enumerate(regions):
-        ax = axes[idx]
-        
-        # Get data for this region
-        data = plot_data_pct.loc[region]
-        comparison_data = overall_share
-        decades = ['1998-2007', '2008-2017', '2018-2025']
-        x_pos = [0, 1, 2]
-
-        # Plot benchmark line (overall portfolio average)
-        ax.plot(x_pos, comparison_data.values, linestyle='--', linewidth=1.5, color='#afb4c1', alpha=0.8)
-        ax.scatter(x_pos, comparison_data.values, s=60, c='#CCCCCC', edgecolor='none', alpha=0.8, zorder=0)
-
-        # Label each benchmark point with its value
-        for i, x in enumerate(x_pos):
-            y = comparison_data.values[i]
-            below = 1 if y <= data.values[i] else -1
-            if not np.isnan(y):
-                ax.text(x, y - below * 1.8, f'{y:.1f}%', ha='center', va='top' if below == 1 else 'bottom', fontsize=8, color='#333333', alpha=0.8)
-
-        # Plot GP line
-        ax.plot(x_pos, data.values, marker='o', linewidth=2, markersize=8, color='#1D486F')
-        
-        # Add percentage labels on points (dynamically positioned)
-        for i, x in enumerate(x_pos):
-            y = data.values[i]
-            above = 1 if y >= comparison_data.values[i] else -1
-            ax.text(x, y + above * 2, f'{y:.0f}%', ha='center', va='bottom' if above == 1 else 'top', fontsize=10, fontweight='bold')
-        
-        # Set title (region name)
-        ax.set_title(region, fontsize=11, fontweight='bold', pad=10, loc='center', color='#016dbf')
-        
-        # Set same y-axis scale for all
-        ax.set_ylim(-3, 35)
-        ax.set_xlim(-0.3, 2.3)
-        
-        # Set x-axis labels
-        ax.set_xticks(x_pos)
-        ax.set_xticklabels(decades, fontsize=7, rotation=0)
-        
-        # Remove y-axis labels except for leftmost column
-        if idx % n_cols == 0:
-            ax.set_ylabel('% Projects that are Innovative', fontsize=9)
-        
-        ax.set_yticks([])
-        
-        for spine in ax.spines.values():
-            spine.set_edgecolor("white")
-            spine.set_linewidth(0.5)
-            spine.set_visible(True)
-        
-        ax.set_facecolor("white")
-        ax.grid(False)
-        ax.tick_params(axis='x', length=0)
+        _plot_innovation_panel(
+            ax=axes[idx],
+            data=plot_data_pct.loc[region],
+            comparison_data=overall_share,
+            label=region,
+            n_cols=n_cols,
+            idx=idx,
+            line_color='#1D486F',
+            benchmark_label_fontsize=8,
+            main_label_fontsize=10,
+            title_pad=10,
+            title_y=None,
+            ylim=(-3, 35),
+            xlim=(-0.3, 2.3),
+            spine_color='white',
+            face_color='white',
+            show_ylabel=True,
+        )
 
     legend_text_main = "GP-specific"
     legend_text_compare =  "Global average"
