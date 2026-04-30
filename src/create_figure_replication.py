@@ -6,104 +6,85 @@ from matplotlib.lines import Line2D
 import seaborn as sns
 
 
-def _plot_innovation_panel(
-    ax,
-    data,
-    comparison_data,
-    label: str,
-    n_cols: int,
-    idx: int,
-    line_color: str,
-    benchmark_label_fontsize: int,
-    main_label_fontsize: int,
-    title_pad: int,
-    title_y: float | None,
-    ylim: tuple,
-    xlim: tuple,
-    spine_color: str,
-    face_color: str,
-    show_ylabel: bool,
-) -> None:
-    """Render one subplot panel for the small-multiples innovation figures.
-
-    Plots a benchmark (dashed gray) line and a main (colored) line across
-    three decade x-positions, with value labels positioned to avoid overlap.
-
-    Args:
-        ax: Matplotlib Axes object to draw on.
-        data: Series with values for the three decades (main line).
-        comparison_data: Series with values for the three decades (benchmark).
-        label: Panel title text.
-        n_cols: Number of columns in the grid (used to decide when to show y-label).
-        idx: Panel index (0-based) in the flattened axes array.
-        line_color: Hex color for the main data line.
-        benchmark_label_fontsize: Font size for benchmark value labels.
-        main_label_fontsize: Font size for main-line value labels.
-        title_pad: Padding above the panel title.
-        title_y: Vertical position of the title (None = matplotlib default).
-        ylim: (min, max) for y-axis.
-        xlim: (min, max) for x-axis.
-        spine_color: Edge color for panel spines.
-        face_color: Background color for panel.
-        show_ylabel: If True, show y-axis label on leftmost column panels.
-    """
-    x_pos = [0, 1, 2]
-    decades = ['1998-2007', '2008-2017', '2018-2025']
-
-    # Benchmark line
-    ax.plot(x_pos, comparison_data.values, linestyle='--', linewidth=1.5, color='#afb4c1', alpha=0.8)
-    ax.scatter(x_pos, comparison_data.values, s=60, c='#CCCCCC', edgecolor='none', alpha=0.8, zorder=0)
-
-    # Benchmark value labels
-    for i, x in enumerate(x_pos):
-        y = comparison_data.values[i]
-        below = 1 if y <= data.values[i] else -1
-        if not np.isnan(y):
-            ax.text(
-                x, y - below * 1.8, f'{y:.1f}%',
-                ha='center', va='top' if below == 1 else 'bottom',
-                fontsize=benchmark_label_fontsize, color='#333333', alpha=0.8,
-            )
-
-    # Main line
-    ax.plot(x_pos, data.values, marker='o', linewidth=2, markersize=8, color=line_color)
-
-    # Main-line value labels
-    for i, x in enumerate(x_pos):
-        y = data.values[i]
-        above = 1 if y >= comparison_data.values[i] else -1
-        ax.text(
-            x, y + above * 2, f'{y:.0f}%',
-            ha='center', va='bottom' if above == 1 else 'top',
-            fontsize=main_label_fontsize, fontweight='bold',
-        )
-
-    # Panel title
-    title_kwargs = dict(fontsize=11, fontweight='bold', pad=title_pad, loc='center', color='#016dbf')
-    if title_y is not None:
-        title_kwargs['y'] = title_y
-    ax.set_title(label, **title_kwargs)
-
-    ax.set_ylim(*ylim)
-    ax.set_xlim(*xlim)
-    ax.set_xticks(x_pos)
-    ax.set_xticklabels(decades, fontsize=7, rotation=0)
-    ax.set_yticks([])
-
-    if show_ylabel and idx % n_cols == 0:
-        ax.set_ylabel('% Projects that are Innovative', fontsize=9)
-
-    for spine in ax.spines.values():
-        spine.set_edgecolor(spine_color)
-        spine.set_linewidth(0.5)
-        spine.set_visible(True)
-
-    ax.set_facecolor(face_color)
-    ax.grid(False)
-    ax.tick_params(axis='x', length=0)
-
 
 def create_fig_3_1(df: pd.DataFrame):
+
+    plot_data = (
+        df
+        .assign(hm_group=lambda x: x['high_innovation'].map({1: 'HM', 0: 'L'}))
+        .groupby(['cohort', 'hm_group'])['project_id']
+        .nunique()
+        .reset_index()
+    )
+    total = df.groupby('cohort')['project_id'].nunique().reset_index(name='total')
+    plot_data = (
+        plot_data
+        .merge(total, on='cohort')
+        .assign(pct=lambda x: (x['project_id'] / x['total'] * 100).round(0))
+    )
+
+    fig, ax = plt.subplots()
+
+    for group in ['L', 'HM']:
+        group_data = plot_data[plot_data['hm_group'] == group]
+        if group == 'L':
+            color = '#7f8c8d'
+            lw = 1.5
+            ls = '--'
+            mfc = '#CCCCCC'
+            alpha = 0.8
+            label_offset = -8
+            label = 'Low Innovation (%)'
+        else:
+            color = '#1D486F'
+            lw = 2
+            ls = '-'
+            mfc = '#1D486F'
+            alpha = 1.0
+            label_offset = 8
+            label = 'High/Moderate Innovation (%)'
+
+        ax.plot(
+            group_data['cohort'], group_data['pct'],
+            label=label, color=color, linewidth=lw, linestyle=ls,
+            marker='o', markersize=6, markerfacecolor=mfc,
+            markeredgewidth=0, alpha=alpha,
+        )
+        for x, y in zip(group_data['cohort'], group_data['pct']):
+            ax.annotate(
+                f"{y:.0f}%", (x, y),
+                textcoords="offset points", xytext=(0, label_offset),
+                ha='center', va='bottom' if label_offset > 0 else 'top',
+                fontsize=8, color=color,
+            )
+
+    legend_elements = [
+        Line2D([0], [0], color='#7f8c8d', linewidth=1.5, linestyle='--', marker='o',
+               markersize=6, markerfacecolor='#CCCCCC', markeredgewidth=0, alpha=0.8,
+               label='Low Innovation (%)'),
+        Line2D([0], [0], color='#1D486F', linewidth=2, marker='o', markersize=6,
+               label='High/Moderate Innovation (%)'),
+    ]
+    fig.legend(handles=legend_elements, loc='upper left', bbox_to_anchor=(0.3, 0.6),
+               frameon=False, fontsize=9)
+
+    ax.set_title(
+        'Evolution of Innovation Intensity in Bank Group Projects\n(5-year cohorts, 1998-2025)',
+        fontsize=12, fontweight='bold', pad=20, color='#016dbf',
+    )
+    ax.set_xlabel('Cohort', fontsize=12)
+    ax.text(1.05, -0.1, "(partial cohort)", transform=ax.transAxes,
+            ha='right', va='top', fontsize=10, color='black')
+    ax.set_ylabel('Share of Projects (%)', fontsize=12)
+    ax.grid(True, alpha=0.15, linestyle='-', linewidth=0.5)
+    ax.set_ylim(0, 100)
+
+    sns.despine()
+    plt.tight_layout()
+    return fig
+
+
+def create_fig_3_2(df: pd.DataFrame):
 
     overall_share = (
         df
@@ -138,97 +119,96 @@ def create_fig_3_1(df: pd.DataFrame):
         plot_data
         .query("high_innovation == 1")
         .merge(totals, on=['wb_region', 'decade'])
-        .assign(pct_hm = lambda x: (x['count'] / x['total']) * 100)
-        .replace({'wb_region': {
-            'East Asia & Pacific': 'EAP',
-            'South Asia': 'SAR',
-            'Eastern & Southern Africa': 'AFE',
-            'Europe & Central Asia': 'ECA',
-            'Middle East & North Africa': 'MNA',
-            "Western & Central Africa": 'AFW',
-            'Latin America & Caribbean': 'LAC',
-        }})
+        .assign(pct_hm=lambda x: (x['count'] / x['total']) * 100)
         .pivot(index='wb_region', columns='decade', values='pct_hm')
         .fillna(0)
         [['1998-2007', '2008-2017', '2018-2025']]  # Ensure column order
     )
 
-    # Define custom region order
     region_order = [
-        'EAP',
-        "SAR",
-        "AFE",
-        'ECA',
-        'MNA',
-        "AFW",
-        'LAC',
+        'East Asia & Pacific',
+        'South Asia',
+        'Eastern & Southern Africa',
+        'Europe & Central Asia',
+        'Middle East & North Africa',
+        'Western & Central Africa',
+        'Latin America & the Caribbean',
     ]
 
-    # Get regions in custom order (only those that exist in the data)
     regions = [r for r in region_order if r in plot_data_pct.index]
     n_regions = len(regions)
 
-    # Create small multiples layout
-    n_cols = 2
+    n_cols = 3
     n_rows = (n_regions + n_cols - 1) // n_cols
 
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(6.5, n_rows * 2), dpi=150)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(12, n_rows * 3), dpi=150)
     axes = axes.flatten()
 
-    # Plot each region
     for idx, region in enumerate(regions):
-        _plot_innovation_panel(
-            ax=axes[idx],
-            data=plot_data_pct.loc[region],
-            comparison_data=overall_share,
-            label=region,
-            n_cols=n_cols,
-            idx=idx,
-            line_color='#00274c',
-            benchmark_label_fontsize=7,
-            main_label_fontsize=8,
-            title_pad=0,
-            title_y=0.85,
-            ylim=(0, 33),
-            xlim=(-0.1, 2.1),
-            spine_color='#dbe8f3',
-            face_color='#fafdff',
-            show_ylabel=False,
-        )
+        ax = axes[idx]
 
-    legend_text_main = "Region-specific"
-    legend_text_compare =  "Global average"
+        data = plot_data_pct.loc[region]
+        comparison_data = overall_share
+        decades = ['1998-2007', '2008-2017', '2018-2025']
+        x_pos = [0, 1, 2]
+
+        ax.plot(x_pos, comparison_data.values, linestyle='--', linewidth=1.5, color='#afb4c1', alpha=0.8)
+        ax.scatter(x_pos, comparison_data.values, s=60, c='#CCCCCC', edgecolor='none', alpha=0.8, zorder=0)
+
+        for i, x in enumerate(x_pos):
+            y = comparison_data.values[i]
+            below = 1 if y <= data.values[i] else -1
+            if not np.isnan(y):
+                ax.text(x, y - below * 1.8, f'{y:.1f}%', ha='center', va='top' if below == 1 else 'bottom', fontsize=8, color='#333333', alpha=0.8)
+
+        ax.plot(x_pos, data.values, marker='o', linewidth=2, markersize=8, color='#1D486F')
+
+        for i, x in enumerate(x_pos):
+            y = data.values[i]
+            above = 1 if y >= comparison_data.values[i] else -1
+            ax.text(x, y + above * 2, f'{y:.0f}%', ha='center', va='bottom' if above == 1 else 'top', fontsize=10, fontweight='bold')
+
+        ax.set_title(region, fontsize=11, fontweight='bold', pad=10, loc='center', color='#016dbf')
+        ax.set_ylim(-3, 35)
+        ax.set_xlim(-0.3, 2.3)
+        ax.set_xticks(x_pos)
+        ax.set_xticklabels(decades, fontsize=7, rotation=0)
+
+        if idx % n_cols == 0:
+            ax.set_ylabel('% Projects that are Innovative', fontsize=9)
+
+        ax.set_yticks([])
+
+        for spine in ax.spines.values():
+            spine.set_edgecolor('white')
+            spine.set_linewidth(0.5)
+            spine.set_visible(True)
+
+        ax.set_facecolor('white')
+        ax.grid(False)
+        ax.tick_params(axis='x', length=0)
 
     legend_elements = [
-        Line2D([0], [0], color='#1D486F', linewidth=2, marker='o', markersize=5, label=legend_text_main),
-        Line2D([0], [0], color='#afb4c1', linewidth=1.5, linestyle='--', marker='o', markersize=5, 
-            markerfacecolor='#CCCCCC', markeredgewidth=0, alpha=0.8, label=legend_text_compare)
+        Line2D([0], [0], color='#1D486F', linewidth=2, marker='o', markersize=6, label='Region-specific'),
+        Line2D([0], [0], color='#afb4c1', linewidth=1.5, linestyle='--', marker='o', markersize=6,
+               markerfacecolor='#CCCCCC', markeredgewidth=0, alpha=0.8, label='Global average'),
     ]
-    fig.legend(handles=legend_elements, loc='lower right', bbox_to_anchor=(0.99, 0.1),                                                                               
-              frameon=False, fontsize=8)
+    fig.legend(handles=legend_elements, loc='upper left', bbox_to_anchor=(0.02, 0.99),
+               frameon=False, fontsize=9)
 
-    # Hide empty subplots
     for idx in range(n_regions, len(axes)):
         axes[idx].set_visible(False)
 
-    # Overall title
-    fig.suptitle("% of Projects that are Innovative (by Region and Cohort)", 
-                fontsize=9, fontweight='bold', x=0.5, ha='center', color='#016dbf')
+    fig.suptitle("% of Projects that are Innovative (by Region and Cohort)",
+                 fontsize=14, fontweight='bold', x=0.5, ha='center', color='#016dbf')
 
     fig.patch.set_facecolor('white')
-    fig.subplots_adjust(
-        left=0.04,    # smaller left margin
-        right=0.98,   # smaller right margin
-        hspace=0.25,   # increase vertical gap between subplot rows
-        wspace=0.25,
-        bottom=0.12,   # keep x labels visible
-        top=0.93       # reserve space for suptitle/legend
-    )
+    plt.tight_layout(rect=[0, 0, 1, 0.97], h_pad=2.5, w_pad=2)
 
     return fig
 
 
-def create_fig_3_3(df: pd.DataFrame, t39_df: pd.DataFrame):
+def create_fig_3_4(df: pd.DataFrame, t39_df: pd.DataFrame):
 
     t39 = t39_df[['GP', '% of Sectoral Portfolio']]
     top_share_gps = t39[0:9]
@@ -311,24 +291,48 @@ def create_fig_3_3(df: pd.DataFrame, t39_df: pd.DataFrame):
 
     # Plot each GP
     for idx, region in enumerate(regions):
-        _plot_innovation_panel(
-            ax=axes[idx],
-            data=plot_data_pct.loc[region],
-            comparison_data=overall_share,
-            label=region,
-            n_cols=n_cols,
-            idx=idx,
-            line_color='#1D486F',
-            benchmark_label_fontsize=8,
-            main_label_fontsize=10,
-            title_pad=10,
-            title_y=None,
-            ylim=(-3, 35),
-            xlim=(-0.3, 2.3),
-            spine_color='white',
-            face_color='white',
-            show_ylabel=True,
-        )
+        ax = axes[idx]
+
+        data = plot_data_pct.loc[region]
+        comparison_data = overall_share
+        decades = ['1998-2007', '2008-2017', '2018-2025']
+        x_pos = [0, 1, 2]
+
+        ax.plot(x_pos, comparison_data.values, linestyle='--', linewidth=1.5, color='#afb4c1', alpha=0.8)
+        ax.scatter(x_pos, comparison_data.values, s=60, c='#CCCCCC', edgecolor='none', alpha=0.8, zorder=0)
+
+        for i, x in enumerate(x_pos):
+            y = comparison_data.values[i]
+            below = 1 if y <= data.values[i] else -1
+            if not np.isnan(y):
+                ax.text(x, y - below * 1.8, f'{y:.1f}%', ha='center', va='top' if below == 1 else 'bottom', fontsize=8, color='#333333', alpha=0.8)
+
+        ax.plot(x_pos, data.values, marker='o', linewidth=2, markersize=8, color='#1D486F')
+
+        for i, x in enumerate(x_pos):
+            y = data.values[i]
+            above = 1 if y >= comparison_data.values[i] else -1
+            ax.text(x, y + above * 2, f'{y:.0f}%', ha='center', va='bottom' if above == 1 else 'top', fontsize=10, fontweight='bold')
+
+        ax.set_title(region, fontsize=11, fontweight='bold', pad=10, loc='center', color='#016dbf')
+        ax.set_ylim(-3, 35)
+        ax.set_xlim(-0.3, 2.3)
+        ax.set_xticks(x_pos)
+        ax.set_xticklabels(decades, fontsize=7, rotation=0)
+
+        if idx % n_cols == 0:
+            ax.set_ylabel('% Projects that are Innovative', fontsize=9)
+
+        ax.set_yticks([])
+
+        for spine in ax.spines.values():
+            spine.set_edgecolor('white')
+            spine.set_linewidth(0.5)
+            spine.set_visible(True)
+
+        ax.set_facecolor('white')
+        ax.grid(False)
+        ax.tick_params(axis='x', length=0)
 
     legend_text_main = "GP-specific"
     legend_text_compare =  "Global average"
@@ -354,12 +358,7 @@ def create_fig_3_3(df: pd.DataFrame, t39_df: pd.DataFrame):
 
 def create_fig_4_1(d1_df: pd.DataFrame):
 
-    d1 = d1_df.assign(
-        Projects=lambda x: x['Projects'].replace({
-            'Low Innovation': '"Standard" Projects',
-            'High + Moderate Innovative Projects': 'Projects with Innovation',
-        })
-    )
+    d1 = d1_df
 
     all_val = d1.loc[d1["Projects"] == "All", "Average Rating"].iloc[0]
     bars_df = d1.loc[d1["Projects"] != "All", ["Projects", "Difference from Overall"]].sort_values(by='Difference from Overall')
@@ -387,10 +386,10 @@ def create_fig_4_1(d1_df: pd.DataFrame):
     )
     ax.set_xlabel("Innovation Level")
     ax.set_ylabel("Difference from Overall")
-    ax.set_title('Compared to Average IEG Project Rating',
+    ax.set_title('Compared to Average IEG Project ratings',
                 fontsize=12, fontweight='bold', pad=20, color='#016dbf')
     ax.grid(True, axis="y", alpha=0.2, linestyle="--")
-    ax.set_ylim(-0.1, 0.15)
+    ax.set_ylim(-0.05, 0.15)
 
     # Bar value labels (white, inside bars)
     for rect in bars:

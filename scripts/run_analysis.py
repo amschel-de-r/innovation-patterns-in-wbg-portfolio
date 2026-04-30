@@ -13,7 +13,7 @@ sys.path.insert(0, str(_ANALYSIS_ROOT))
 from src.clean_ieg_data import clean_data, load_fcs_countries
 from src.create_kw_index import match_innovation_keywords
 from src.create_table_replication import create_table_3_9, create_table_D_2a
-from src.create_figure_replication import create_fig_3_1, create_fig_3_3, create_fig_4_1, create_fig_D_1
+from src.create_figure_replication import create_fig_3_1, create_fig_3_2, create_fig_3_4, create_fig_4_1, create_fig_D_1
 from src.create_numbers_replication import create_numbers_summary, create_ifc_gp_table, create_ifc_country_table
 from src._paths import DATA_ROOT, TABLES_DIR, OUTPUT_DIR
 from src.table_config import TABLE_REPLICATION_MAP
@@ -47,11 +47,15 @@ def load_data(file_path: Path) -> pd.DataFrame:
 
 def write_figures(processed_df: pd.DataFrame, figures_dir: Path) -> None:
     fig = create_fig_3_1(processed_df)
-    fig.savefig(figures_dir / "Fig3_1.png", bbox_inches="tight")
+    fig.savefig(figures_dir / "Fig3_1.svg", bbox_inches="tight")
     plt.close(fig)
 
-    fig = create_fig_3_3(processed_df, create_table_3_9(processed_df))
-    fig.savefig(figures_dir / "Fig3_3.svg")
+    fig = create_fig_3_2(processed_df)
+    fig.savefig(figures_dir / "Fig3_2.svg", bbox_inches="tight")
+    plt.close(fig)
+
+    fig = create_fig_3_4(processed_df, create_table_3_9(processed_df))
+    fig.savefig(figures_dir / "Fig3_4.svg")
     plt.close(fig)
 
     fig = create_fig_4_1(create_table_D_2a(processed_df))
